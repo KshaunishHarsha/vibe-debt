@@ -8,9 +8,12 @@
  * @module
  */
 
+import type * as analyses from "../analyses.js";
 import type * as analysisJobs from "../analysisJobs.js";
+import type * as dev from "../dev.js";
 import type * as github from "../github.js";
 import type * as http from "../http.js";
+import type * as lib_repoUrl from "../lib/repoUrl.js";
 
 import type {
   ApiFromModules,
@@ -19,9 +22,12 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  analyses: typeof analyses;
   analysisJobs: typeof analysisJobs;
+  dev: typeof dev;
   github: typeof github;
   http: typeof http;
+  "lib/repoUrl": typeof lib_repoUrl;
 }>;
 
 /**
