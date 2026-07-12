@@ -9,6 +9,8 @@
  */
 
 import type * as analysisJobs from "../analysisJobs.js";
+import type * as github from "../github.js";
+import type * as http from "../http.js";
 
 import type {
   ApiFromModules,
@@ -18,6 +20,8 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   analysisJobs: typeof analysisJobs;
+  github: typeof github;
+  http: typeof http;
 }>;
 
 /**
