@@ -19,6 +19,8 @@ const analysisResult = v.object({
   }),
   leaderboardEligible: v.boolean(),
   createdAt: v.number(),
+  slangRoast: v.optional(v.string()),
+  roastAudioId: v.optional(v.id("_storage")),
 });
 
 function stripSystemFields(doc: {
@@ -52,6 +54,8 @@ export const getResult = query({
   args: { repoUrl: v.string() },
   returns: v.object({
     analysis: v.union(analysisResult, v.null()),
+    slangRoast: v.union(v.string(), v.null()),
+    roastAudioUrl: v.union(v.string(), v.null()),
     jobStatus: v.union(
       v.literal("pending"),
       v.literal("claimed"),
@@ -71,8 +75,13 @@ export const getResult = query({
       .withIndex("by_repoUrl", (q) => q.eq("repoUrl", args.repoUrl))
       .order("desc")
       .first();
+    const roastAudioUrl = analysis?.roastAudioId
+      ? await ctx.storage.getUrl(analysis.roastAudioId)
+      : null;
     return {
       analysis: analysis ? (stripSystemFields(analysis) as typeof analysis) : null,
+      slangRoast: analysis?.slangRoast ?? null,
+      roastAudioUrl,
       jobStatus: job?.status ?? null,
     };
   },

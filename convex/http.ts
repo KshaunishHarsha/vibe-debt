@@ -1,6 +1,7 @@
 import { httpRouter } from "convex/server";
 import { httpAction } from "./_generated/server";
 import { internal } from "./_generated/api";
+import type { Id } from "./_generated/dataModel";
 
 // These endpoints are the only surface Hermes (on the droplet) talks to.
 // Both are guarded by a shared secret so random internet traffic can't
@@ -49,6 +50,27 @@ http.route({
       result,
     });
     return Response.json({ ok: true, analysisId });
+  }),
+});
+
+// Hermes uploads ElevenLabs roast audio here (binary mp3 body).
+http.route({
+  path: "/api/audio",
+  method: "POST",
+  handler: httpAction(async (ctx, req) => {
+    if (!authorized(req)) return new Response("unauthorized", { status: 401 });
+    const analysisId = new URL(req.url).searchParams.get("analysisId");
+    if (!analysisId) return new Response("missing analysisId", { status: 400 });
+    const blob = await req.blob();
+    if (blob.size < 5_000 || blob.size > 10_000_000) {
+      return new Response("implausible audio size", { status: 400 });
+    }
+    const storageId = await ctx.storage.store(blob);
+    await ctx.runMutation(internal.roastsDb.attachAudio, {
+      analysisId: analysisId as Id<"analyses">,
+      storageId,
+    });
+    return Response.json({ ok: true });
   }),
 });
 

@@ -12,8 +12,12 @@ import type * as analyses from "../analyses.js";
 import type * as analysisJobs from "../analysisJobs.js";
 import type * as dev from "../dev.js";
 import type * as github from "../github.js";
+import type * as hermes from "../hermes.js";
 import type * as http from "../http.js";
 import type * as lib_repoUrl from "../lib/repoUrl.js";
+import type * as roasts from "../roasts.js";
+import type * as roastsDb from "../roastsDb.js";
+import type * as signups from "../signups.js";
 
 import type {
   ApiFromModules,
@@ -26,8 +30,12 @@ declare const fullApi: ApiFromModules<{
   analysisJobs: typeof analysisJobs;
   dev: typeof dev;
   github: typeof github;
+  hermes: typeof hermes;
   http: typeof http;
   "lib/repoUrl": typeof lib_repoUrl;
+  roasts: typeof roasts;
+  roastsDb: typeof roastsDb;
+  signups: typeof signups;
 }>;
 
 /**

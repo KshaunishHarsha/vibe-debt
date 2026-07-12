@@ -7,7 +7,9 @@ import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import { normalizeRepoUrl } from "./lib/repoUrl";
 
-const MAX_REPO_SIZE_KB = 50 * 1024; // ~50MB — "too enterprise to vibe-check"
+// GitHub's `size` includes full git history, so this is generous on purpose —
+// analysis cost is capped by the 15-file sampling budget, not repo size.
+const MAX_REPO_SIZE_KB = 500 * 1024; // ~500MB of git history
 const RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000;
 const RATE_LIMIT_MAX = 10; // submissions per IP per hour
 
@@ -83,7 +85,7 @@ export const submit = action({
     if (meta.size > MAX_REPO_SIZE_KB) {
       return {
         status: "too_big" as const,
-        message: "This repo is too enterprise to vibe-check. Try something under 50MB.",
+        message: "This repo is too enterprise to vibe-check. Try something under 500MB.",
       };
     }
 
@@ -138,11 +140,27 @@ export const enqueue = internalMutation({
   args: { repoUrl: v.string() },
   returns: v.id("analysisJobs"),
   handler: async (ctx, args) => {
-    return await ctx.db.insert("analysisJobs", {
+    const jobId = await ctx.db.insert("analysisJobs", {
       repoUrl: args.repoUrl,
       status: "pending",
       createdAt: Date.now(),
     });
+    // Primary execution path: schedule the Hermes-driven analysis immediately.
+    // (The HTTP claim/result endpoints remain as a droplet-side poller fallback.)
+    await ctx.scheduler.runAfter(0, internal.hermes.runAnalysis, {
+      jobId,
+      repoUrl: args.repoUrl,
+    });
+    return jobId;
+  },
+});
+
+export const markClaimed = internalMutation({
+  args: { jobId: v.id("analysisJobs") },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.jobId, { status: "claimed", claimedAt: Date.now() });
+    return null;
   },
 });
 
@@ -204,6 +222,11 @@ export const completeJob = internalMutation({
       createdAt: Date.now(),
     });
     await ctx.db.patch(args.jobId, { status: "done" });
+    // Fire-and-forget: unhinged slang roast (+ voice, when the ElevenLabs key
+    // is on the VPS) for every fresh analysis.
+    await ctx.scheduler.runAfter(0, internal.roasts.generateSlang, {
+      analysisId,
+    });
     return analysisId;
   },
 });

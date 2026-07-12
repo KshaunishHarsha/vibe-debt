@@ -30,6 +30,8 @@ export default defineSchema({
     }),
     leaderboardEligible: v.boolean(),
     createdAt: v.number(),
+    slangRoast: v.optional(v.string()),
+    roastAudioId: v.optional(v.id("_storage")),
   }).index("by_repoUrl", ["repoUrl"])
     .index("by_cookedScore", ["leaderboardEligible", "cookedScore"]),
 

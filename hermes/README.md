@@ -1,63 +1,50 @@
-# Hermes runtime — droplet setup
+# Hermes runtime — VPS setup
 
-This directory ships to the DigitalOcean droplet. Hermes executes the
-`cooked-check` skill per job; `poller.sh` moves jobs between Convex and Hermes.
+Hermes runs on the VPS (167.71.230.193) exposed as an OpenAI-compatible API.
+Convex drives it directly: job queued → Convex action calls the Hermes API →
+Hermes executes the `cooked-check` skill (agentic exploration + deterministic
+scorer) → Convex stores the result. No poller needed in this mode.
 
-## Install (once)
+## VPS prerequisites (one-time)
 
-```bash
-# from your laptop
-scp -r hermes/ root@<droplet-ip>:~/cooked/
+1. **Open the API port** (currently unreachable from outside):
+   - bind the API server to `0.0.0.0`, not `127.0.0.1`
+   - `sudo ufw allow 8642/tcp` — AND check the DigitalOcean cloud firewall
+     in the DO dashboard if one is attached
+   - verify from any laptop: `curl -m 5 http://167.71.230.193:8642/v1/models -H "Authorization: Bearer <HERMES_API_KEY>"`
 
-# on the droplet
-cd ~/cooked
-chmod +x poller.sh
-cp poller.env.example poller.env   # then fill in the values
-```
+2. **Install the skill files** at exactly `/root/cooked/skills/cooked-check/`
+   (the Convex action's prompt points there):
+   ```bash
+   scp -r hermes/skills root@167.71.230.193:/root/cooked/skills
+   ```
 
-`poller.env`:
-```bash
-CONVEX_SITE_URL=https://brazen-oyster-161.convex.site
-HERMES_SHARED_SECRET=<same value as .env.local on the laptop / Convex env>
-GITHUB_PAT=<the fine-grained PAT>
-HERMES_CMD="hermes run"   # ⚠️ verify: run `hermes --help` and set the exact
-                          # non-interactive invocation (one-shot prompt, auto-
-                          # approve tools). May be e.g. `hermes run --yolo` or
-                          # `hermes exec` depending on version.
-```
+3. **GITHUB_PAT in the Hermes process environment** (the skill's curl calls use
+   it): add `GITHUB_PAT=...` to `~/.hermes/.env` (or the systemd unit / shell
+   profile that launches the API server), then restart the Hermes API server.
 
-## Run
+4. **python3 available** on the VPS (`python3 --version`) — the deterministic
+   scorer runs there.
 
-```bash
-tmux new -s poller
-./poller.sh
-# Ctrl-B D to detach
-```
+## What's already configured on the Convex side
+- `HERMES_API_URL`, `HERMES_API_KEY` set on the deployment
+- `convex/hermes.ts` schedules a Hermes run for every queued job, parses the
+  result JSON, clamps/validates it, and stores it
 
-For auto-restart on reboot, a systemd unit is nicer (optional):
-```ini
-# /etc/systemd/system/cooked-poller.service
-[Unit]
-Description=cooked-check poller
-After=network.target
-[Service]
-WorkingDirectory=/root/cooked
-ExecStart=/root/cooked/poller.sh
-Restart=always
-[Install]
-WantedBy=multi-user.target
-```
+## Fallback: droplet-side poller
+`poller.sh` + `poller.env.example` implement the original outbound-polling
+pattern (droplet polls `/api/jobs/next`, posts to `/api/jobs/result`). Keep as
+a fallback if the inbound API path has problems on demo day.
 
 ## Verify one round trip
-
-1. Submit a repo at https://cooked-repo.vercel.app (or `curl -X POST .../api/submit`).
-2. Watch the poller log claim it.
-3. `cat /tmp/cooked-*/hermes-session.log` — the Hermes session trace (KEEP these;
-   they're the eligibility proof; copies land in ./session-logs/).
-4. The result page updates automatically when the result posts.
+1. Submit a repo at https://cooked-repo.vercel.app
+2. Watch the Convex logs (`npx convex logs`) for the runAnalysis call
+3. Result page updates automatically when the analysis lands
+4. Keep Hermes session traces on the VPS — they're the eligibility proof
+   (agent-chosen file exploration must be visible in them)
 
 ## Eligibility proof checklist (for the demo)
-- `session-logs/` — Hermes traces showing agent-chosen file exploration
+- Hermes session traces showing agent-chosen file exploration
 - Telegram: message the bot about an analyzed repo (Phase 4 wiring)
 - The answer to "why Hermes?": adaptive exploration + conversational
   interrogation with held context — a plain API call can't do either.
