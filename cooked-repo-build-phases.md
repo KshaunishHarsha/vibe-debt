@@ -8,19 +8,24 @@
 
 ## PHASE 0 — Pre-Event Setup (do now, before event day)
 
-### 0.1 Hermes environment
-- [ ] Install: `curl -fsSL https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/install.sh | bash`
-- [ ] LLM provider:
+### 0.1 Hermes environment — hosted on a DigitalOcean droplet
+- [ ] Create a DigitalOcean droplet (small size is plenty; Ubuntu LTS)
+- [ ] SSH key set up, confirm you can `ssh` into the droplet
+- [ ] Install Hermes ON THE DROPLET (SSH in, then run this there — not on your laptop): `curl -fsSL https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/install.sh | bash`
+- [ ] LLM provider (on the droplet):
   - If OpenAI org ID was submitted at registration → `OPENAI_API_KEY` in `~/.hermes/.env`; in `~/.hermes/config.yaml`: provider `openai-api`, model `gpt-5.6-sol`
   - Else → OpenRouter with $10 loaded
-- [ ] `hermes status` → confirm green
-- [ ] Telegram gateway: @BotFather → `/newbot` → save token; @userinfobot → numeric ID; `hermes gateway setup` → `hermes gateway`
+- [ ] Terminal backend: **Local** (correct even on a droplet — Hermes executes tools on whatever machine it runs on, which is now the droplet)
+- [ ] `hermes status` → confirm green, on the droplet
+- [ ] Telegram gateway (on the droplet): @BotFather → `/newbot` → save token; @userinfobot → numeric ID; `hermes gateway setup` → run `hermes gateway` **inside `tmux`/`screen`** so it survives SSH disconnects (or set up `systemd`/`pm2` for auto-restart on reboot)
 - [ ] DM the bot: "Hello Hermes, reply in one sentence and tell me what tools are active" → confirm reply
 - [ ] Checkpoint test: "Give me a one-paragraph setup report: model, tool route, channel, memory, and one thing still missing"
 - [ ] Spend 15 min in `hermes skills browse` — understand skill file structure (your product ships as one)
 - [ ] Optional: `hermes memory setup` (enables the score-over-time stretch feature)
+- [ ] **Benefit:** droplet is always-on regardless of your laptop — no need to babysit laptop sleep/battery during the event, and the bot keeps working after the event too
 
 ### 0.2 Accounts & infra (wiring ≠ pre-building, explicitly allowed)
+- [ ] **DigitalOcean** account + droplet created (see 0.1 — this hosts Hermes)
 - [ ] **Convex** account + empty project created
 - [ ] **Cloudflare** account ready (Pages)
 - [ ] **Datafast** account + learn how to generate a read-only dashboard share link (mandatory to break the L2 visitors cap)
@@ -55,12 +60,13 @@
 
 Goal: retire ALL integration risk before writing product logic.
 
+- [ ] SSH into the droplet, confirm `hermes status` clean, confirm `hermes gateway` still running in `tmux`/`systemd` (should already be done in Phase 0 — this is just the on-site re-verify)
 - [ ] Repo initialized; project-level `CLAUDE.md` created with the full spec pasted in
 - [ ] Scaffold web app (standard starter), deploy **empty page to Cloudflare** on the real domain
 - [ ] Datafast snippet live on that page → verify a hit appears in dashboard → generate judge read-only link
 - [ ] Convex connected to the app; one test write/read round-trip
 - [ ] GitHub PAT tested from server function (fetch a repo tree)
-- [ ] Hermes reachable from Convex (one round-trip: send text, get reply)
+- [ ] Hermes (on the droplet) polling Convex successfully (one round-trip: write a test job, confirm Hermes picks it up)
 - [ ] Start Wispr word count (dictate specs/notes all day)
 - [ ] **Flag architecture to a mentor now** — "Hermes-as-harness via skill + Telegram, does this satisfy the rule?"
 

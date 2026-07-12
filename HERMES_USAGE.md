@@ -18,18 +18,20 @@ Instead, Hermes should be doing three things a plain API call can't:
 
 ## Architecture: what lives where
 
-**Important correction from earlier planning:** Hermes runs locally on the builder's
-laptop all day (per the handbook: "Hermes runs on your machine, Telegram becomes your
-remote control"). There is NO tunnel (no cloudflared/ngrok) and the cloud-hosted web app
-never calls INTO Hermes. Instead, Hermes calls OUT to Convex's public HTTP endpoint when
-it finishes an analysis. This is simpler and matches the handbook's intended design.
+**Hosting update:** Hermes runs on a **DigitalOcean VPS** (droplet), not the builder's
+laptop. This removes the laptop-uptime tradeoff entirely — the droplet is always-on
+regardless of whether the laptop is asleep, closed, or off the venue wifi. The
+"terminal backend" setting inside Hermes itself should still be **Local**, because from
+the droplet's own point of view, Hermes is running directly on the machine it's on
+(the VPS) — Local just means "don't shell out to Docker/Modal/SSH for tool execution,"
+which is still correct when Hermes's whole process lives on the droplet.
 
-**Accepted tradeoff (deliberate, event-day only):** the Telegram bot and any
-Hermes-dependent capability are only live while the laptop is on and `hermes gateway` is
-running. This is fine for an 8-hour on-site event — see the Phase 1 laptop-uptime
-checklist in BUILD_PHASES.md. It is NOT fine indefinitely; if this becomes a real
-post-event product, Hermes would need to move to an always-on host (Modal/VPS/SSH
-backend — Hermes supports this natively). Not a concern for the buildathon itself.
+Because the droplet has a public IP, it CAN accept inbound connections — meaning Convex
+could call Hermes directly instead of polling. We still recommend the **queue/polling
+pattern** below anyway: it's resilient to droplet reboots, deploys, or brief network
+blips, and it means the web app's request path never blocks on Hermes being reachable
+at that exact instant. Treat direct inbound calls as an optional later optimization,
+not the day-one design.
 
 ```
 Frontend (Cloudflare Pages) — fully cloud-hosted, always live
@@ -37,27 +39,38 @@ Frontend (Cloudflare Pages) — fully cloud-hosted, always live
       → leaderboard, share cards, email gate all read/write Convex directly
       → analysis requests get queued as pending rows in Convex (see below)
 
-Hermes (running LOCALLY on the builder's laptop, all day)
-   → polls Convex for pending analysis jobs (OUTBOUND call from Hermes's side)
+Hermes (running on a DigitalOcean droplet, always-on)
+   → polls Convex for pending analysis jobs (OUTBOUND call from the droplet)
    → OR: a user messages the Telegram bot directly with a repo URL
    → either way: Hermes runs the cooked-check skill
       - AGENT-CHOSEN file exploration via GitHub API (no clone)
       - FIXED deterministic checks/weights → score
       - LLM roast prose on top
    → Hermes writes the result back to Convex via its public HTTP endpoint (OUTBOUND)
-   → web app picks up the new row on its next read — no inbound connection to
-     Hermes required at any point
+   → web app picks up the new row on its next read
 ```
 
-**Why a queue instead of a synchronous call:** having the web app write a "pending"
-row to Convex and having Hermes poll for and claim pending jobs (rather than the web
-app trying to call Hermes directly) means a brief laptop hiccup, wifi drop, or traffic
-spike just delays processing instead of breaking the request. This also means the two
-user surfaces (web app and Telegram) share exactly one execution path — Hermes is the
-only thing that ever produces an `analyses` row.
+**Why a queue instead of a synchronous call (still true even with an always-on VPS):**
+having the web app write a "pending" row to Convex and having Hermes poll for and claim
+pending jobs (rather than the web app calling Hermes directly) means a droplet restart,
+deploy, or traffic spike just delays processing instead of breaking the request. It also
+means the two user surfaces (web app and Telegram) share exactly one execution path —
+Hermes is the only thing that ever produces an `analyses` row.
 
-**Critical constraint on the score:** the *checks and weights* are fixed and versioned.
-The *files examined* can be agent-chosen (real agency). This gets you genuine Hermes
+**Droplet operational notes:**
+
+- Run `hermes gateway` inside a process manager that survives SSH disconnects and
+  reboots — `tmux`/`screen` at minimum for the day, `systemd` or `pm2` if you want it to
+  auto-restart on crash or droplet reboot without you SSHing back in.
+- SSH key access to the droplet should be set up in Phase 0 (pre-event), not discovered
+  mid-build.
+- Since the droplet is reachable independent of the venue wifi/laptop, this is also what
+  keeps the Telegram bot (and hence the whole product) alive through the demo and
+  afterward — worth mentioning in the demo's proof segment as a legitimacy signal
+  ("this keeps running after today").
+
+**Critical constraint on the score:** the _checks and weights_ are fixed and versioned.
+The _files examined_ can be agent-chosen (real agency). This gets you genuine Hermes
 agency without breaking score reproducibility — if someone re-runs the same repo and
 gets a slightly different score because different files were sampled, that's defensible
 ("two reviewers read different files") as long as the score formula itself never changes
@@ -82,6 +95,7 @@ to route through Hermes as a formality). Structure:
 
 After a repo is analyzed, the same Hermes session (with the analysis held in context)
 should be reachable via the Telegram bot so a user can ask follow-up questions:
+
 - "why did I lose 15 points?"
 - "show me the worst file"
 - "roast it harder"

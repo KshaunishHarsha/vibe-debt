@@ -4,10 +4,13 @@ Full rationale lives in the builder's planning doc; this is the condensed versio
 in-editor reference. Phase 0 is already done pre-event. **Start from Phase 1 on event day.**
 
 ## Phase 1 — Infrastructure live (hour 0–1)
-- [ ] **Laptop uptime lockdown (do this first, ~2 min):** plug in charger, disable
-  sleep/lid-close suspend, disable auto-updates/restarts for the day, silence
-  distracting notifications. Hermes runs locally on this machine all day — if it
-  sleeps, the Telegram bot goes dark for everyone in the world, mid-demo or not.
+- [ ] SSH into the DigitalOcean droplet, confirm Hermes is installed and `hermes status`
+  is clean (should already be done in Phase 0 — this is just the on-site re-verify)
+- [ ] Start `hermes gateway` inside `tmux` (or confirm the `systemd`/`pm2` service is
+  running) so it survives SSH disconnects and any accidental laptop closures
+- [ ] `hermes gateway setup` if not already done — Telegram token + numeric ID
+- [ ] DM the bot from your phone to confirm it answers — this is your always-on
+  product surface regardless of what happens to the laptop for the rest of the day
 - [ ] `hermes gateway` running in a dedicated terminal tab you will not accidentally close
 Deploy an empty page to the real domain on Cloudflare, Datafast snippet confirmed firing,
 Convex connected with one test round-trip, GitHub PAT tested, Hermes reachable from
